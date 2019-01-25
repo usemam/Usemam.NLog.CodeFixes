@@ -14,16 +14,16 @@ namespace Usemam.NLog.CodeFixes
     {
         public const string DiagnosticId = "ObsoleteLoggerMethodUsage";
 
+        public const string Message = "Obsolete method usage";
+
         private const string Category = "Maintainability";
 
         private const string Title = "Obsolete method usage";
 
-        private const string MessageFormat = "Obsolete method usage";
-
         private const string Description = "Method was marked as obsolete, thus its usage is deprecated";
 
         private static readonly DiagnosticDescriptor Rule =
-            new DiagnosticDescriptor(DiagnosticId, Title, MessageFormat, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, description: Description);
+            new DiagnosticDescriptor(DiagnosticId, Title, Message, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, description: Description);
 
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => ImmutableArray.Create(Rule);
 
