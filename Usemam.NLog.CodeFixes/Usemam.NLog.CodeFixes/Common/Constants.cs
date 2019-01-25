@@ -1,6 +1,6 @@
 ﻿namespace Usemam.NLog.CodeFixes.Common
 {
-    public class Constants
+    internal class Constants
     {
         public static string[] MethodNames = { "Trace", "Debug", "Info", "Warn", "Error", "Fatal" };
 

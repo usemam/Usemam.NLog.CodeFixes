@@ -16,7 +16,7 @@ namespace Usemam.NLog.CodeFixes
     {
         public const string DiagnosticId = "ObsoleteLoggerMethodUsage";
 
-        private const string Category = "Naming";
+        private const string Category = "Maintainability";
 
         private const string Title = "Obsolete method usage";
 
@@ -31,16 +31,10 @@ namespace Usemam.NLog.CodeFixes
 
         public override void Initialize(AnalysisContext context)
         {
-            foreach (string methodName in Constants.MethodNames)
+            foreach (string methodName in Constants.MethodNames.Concat(Constants.ExceptionMethodNames))
             {
                 context.RegisterSyntaxNodeAction(
                     c => AnalyzeInvocationExpression(c, methodName), SyntaxKind.InvocationExpression);
-            }
-
-            foreach (string methodName in Constants.ExceptionMethodNames)
-            {
-                context.RegisterSyntaxNodeAction(
-                    c => AnalyzeInvocationExpressionExceptionMethod(c, methodName), SyntaxKind.InvocationExpression);
             }
         }
 
@@ -48,44 +42,10 @@ namespace Usemam.NLog.CodeFixes
         {
             var syntax = (InvocationExpressionSyntax)context.Node;
             var model = context.SemanticModel;
-            var loggerIfaceType = model.Compilation.GetTypeByMetadataName("NLog.ILogger");
-            var loggerImplType = model.Compilation.GetTypeByMetadataName("NLog.Logger");
-            if (model.GetSymbolInfo(syntax.Expression).Symbol is IMethodSymbol methodSymbol
-                && (loggerIfaceType.Equals(methodSymbol.ReceiverType) || loggerImplType.Equals(methodSymbol.ReceiverType)))
+
+            if (syntax.IsObsoleteLoggerMethodInvocation(model, methodName))
             {
-                var args = syntax.ArgumentList.Arguments;
-                if (methodSymbol.Name == methodName && args.Count == 2)
-                {
-                    var firstArgType = model.GetTypeInfo(args[0].Expression).ConvertedType;
-                    var secondArgType = model.GetTypeInfo(args[1].Expression).ConvertedType;
-                    if (firstArgType != null
-                        && secondArgType != null
-                        && firstArgType.Equals(model.Compilation.GetTypeByMetadataName(typeof(string).FullName))
-                        && secondArgType.Equals(model.Compilation.GetTypeByMetadataName(typeof(Exception).FullName)))
-                    {
-                        var diagnostic = Diagnostic.Create(Rule, syntax.GetLocation(), methodSymbol.Name);
-                        context.ReportDiagnostic(diagnostic);
-                    }
-                }
-            }
-        }
-
-        private void AnalyzeInvocationExpressionExceptionMethod(SyntaxNodeAnalysisContext context, string methodName)
-        {
-
-        }
-
-        private static void AnalyzeSymbol(SymbolAnalysisContext context)
-        {
-            // TODO: Replace the following code with your own analysis, generating Diagnostic objects for any issues you find
-            var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
-
-            // Find just those named type symbols with names containing lowercase letters.
-            if (namedTypeSymbol.Name.ToCharArray().Any(char.IsLower))
-            {
-                // For all such symbols, produce a diagnostic.
-                var diagnostic = Diagnostic.Create(Rule, namedTypeSymbol.Locations[0], namedTypeSymbol.Name);
-
+                var diagnostic = Diagnostic.Create(Rule, syntax.GetLocation(), methodName);
                 context.ReportDiagnostic(diagnostic);
             }
         }

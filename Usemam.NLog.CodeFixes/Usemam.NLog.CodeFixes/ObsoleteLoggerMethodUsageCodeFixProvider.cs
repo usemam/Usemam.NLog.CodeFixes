@@ -52,34 +52,18 @@ namespace Usemam.NLog.CodeFixes
                 {
                     if (context.Document.TryGetSemanticModel(out var model))
                     {
-                        var loggerIfaceType = model.Compilation.GetTypeByMetadataName("NLog.ILogger");
-                        var loggerImplType = model.Compilation.GetTypeByMetadataName("NLog.Logger");
-
-                        if (model.GetSymbolInfo(syntax.Expression).Symbol is IMethodSymbol methodSymbol
-                            && (loggerIfaceType.Equals(methodSymbol.ReceiverType) || loggerImplType.Equals(methodSymbol.ReceiverType)))
+                        if (syntax.IsObsoleteLoggerMethodInvocation(model, Constants.MethodNames))
                         {
-                            var args = syntax.ArgumentList.Arguments;
-                            if (Constants.MethodNames.Contains(methodSymbol.Name) && args.Count == 2)
-                            {
-                                var firstArgType = model.GetTypeInfo(args[0].Expression).ConvertedType;
-                                var secondArgType = model.GetTypeInfo(args[1].Expression).ConvertedType;
-                                if (firstArgType != null
-                                    && secondArgType != null
-                                    && firstArgType.Equals(model.Compilation.GetTypeByMetadataName(typeof(string).FullName))
-                                    && secondArgType.Equals(model.Compilation.GetTypeByMetadataName(typeof(Exception).FullName)))
-                                {
-                                    context.RegisterCodeFix(
-                                        CodeAction.Create(
-                                            Title,
-                                            _ => GetTransformedDocumentAsync(context.Document, root, syntax),
-                                            nameof(ObsoleteLoggerMethodUsageCodeFixProvider)),
-                                        diagnostic);
-                                }
-                            }
-                            else if (Constants.ExceptionMethodNames.Contains(methodSymbol.Name))
-                            {
-                                // todo
-                            }
+                            context.RegisterCodeFix(
+                                CodeAction.Create(
+                                    Title,
+                                    _ => GetTransformedDocumentAsync(context.Document, root, syntax),
+                                    nameof(ObsoleteLoggerMethodUsageCodeFixProvider)),
+                                diagnostic);
+                        }
+                        else if (syntax.IsObsoleteLoggerMethodInvocation(model, Constants.ExceptionMethodNames))
+                        {
+                            // todo
                         }
                     }
                 }
