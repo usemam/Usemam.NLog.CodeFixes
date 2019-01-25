@@ -1,12 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
-using System.Threading;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+
 using Usemam.NLog.CodeFixes.Common;
 
 namespace Usemam.NLog.CodeFixes
@@ -31,7 +29,13 @@ namespace Usemam.NLog.CodeFixes
 
         public override void Initialize(AnalysisContext context)
         {
-            foreach (string methodName in Constants.MethodNames.Concat(Constants.ExceptionMethodNames))
+            foreach (string methodName in Constants.MethodNames)
+            {
+                context.RegisterSyntaxNodeAction(
+                    c => AnalyzeInvocationExpression(c, methodName), SyntaxKind.InvocationExpression);
+            }
+
+            foreach (string methodName in Constants.ExceptionMethodNames)
             {
                 context.RegisterSyntaxNodeAction(
                     c => AnalyzeInvocationExpression(c, methodName), SyntaxKind.InvocationExpression);

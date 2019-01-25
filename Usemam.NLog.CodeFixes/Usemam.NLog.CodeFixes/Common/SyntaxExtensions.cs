@@ -14,9 +14,19 @@ namespace Usemam.NLog.CodeFixes.Common
             var loggerIfaceType = model.Compilation.GetTypeByMetadataName("NLog.ILogger");
             var loggerImplType = model.Compilation.GetTypeByMetadataName("NLog.Logger");
 
-            if (model.GetSymbolInfo(syntax.Expression).Symbol is IMethodSymbol methodSymbol
-                && (loggerIfaceType.Equals(methodSymbol.ReceiverType) ||
-                    loggerImplType.Equals(methodSymbol.ReceiverType)))
+            var symbolInfo = model.GetSymbolInfo(syntax.Expression);
+            IMethodSymbol methodSymbol = null;
+            if (symbolInfo.Symbol != null)
+            {
+                methodSymbol = symbolInfo.Symbol as IMethodSymbol;
+            }
+            else if (symbolInfo.CandidateSymbols.Length > 0)
+            {
+                methodSymbol = symbolInfo.CandidateSymbols[0] as IMethodSymbol;
+            }
+
+            if (methodSymbol != null &&
+                (loggerIfaceType.Equals(methodSymbol.ReceiverType) || loggerImplType.Equals(methodSymbol.ReceiverType)))
             {
                 var args = syntax.ArgumentList.Arguments;
                 if (methodNames.Contains(methodSymbol.Name) && args.Count == 2)

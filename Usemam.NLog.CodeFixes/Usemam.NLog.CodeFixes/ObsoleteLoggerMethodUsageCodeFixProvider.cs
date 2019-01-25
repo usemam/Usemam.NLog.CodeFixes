@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Immutable;
 using System.Composition;
-using System.Linq;
 using System.Threading.Tasks;
 
 using Microsoft.CodeAnalysis;
@@ -9,6 +8,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
 using Usemam.NLog.CodeFixes.Common;
 
 namespace Usemam.NLog.CodeFixes
@@ -57,27 +57,33 @@ namespace Usemam.NLog.CodeFixes
                             context.RegisterCodeFix(
                                 CodeAction.Create(
                                     Title,
-                                    _ => GetTransformedDocumentAsync(context.Document, root, syntax),
+                                    _ => GetTransformedDocumentAsync(context.Document, root, syntax, GetMethodReplacement),
                                     nameof(ObsoleteLoggerMethodUsageCodeFixProvider)),
                                 diagnostic);
                         }
                         else if (syntax.IsObsoleteLoggerMethodInvocation(model, Constants.ExceptionMethodNames))
                         {
-                            // todo
+                            context.RegisterCodeFix(
+                                CodeAction.Create(
+                                    Title,
+                                    _ => GetTransformedDocumentAsync(context.Document, root, syntax, GetExceptionMethodReplacement),
+                                    nameof(ObsoleteLoggerMethodUsageCodeFixProvider)),
+                                diagnostic);
                         }
                     }
                 }
             }
         }
 
-        private Task<Document> GetTransformedDocumentAsync(Document document, SyntaxNode root, InvocationExpressionSyntax syntax)
+        private Task<Document> GetTransformedDocumentAsync(
+            Document document, SyntaxNode root, InvocationExpressionSyntax syntax, Func<InvocationExpressionSyntax, SyntaxNode> substitute)
         {
-            var replacement = GetReplacement(syntax);
+            var replacement = substitute(syntax);
             var newRoot = root.ReplaceNode(syntax, replacement);
             return Task.FromResult(document.WithSyntaxRoot(newRoot));
         }
 
-        private SyntaxNode GetReplacement(InvocationExpressionSyntax syntax)
+        private SyntaxNode GetMethodReplacement(InvocationExpressionSyntax syntax)
         {
             var firstArg = syntax.ArgumentList.Arguments[0];
             var secondArg = syntax.ArgumentList.Arguments[1];
@@ -86,6 +92,25 @@ namespace Usemam.NLog.CodeFixes
                 SyntaxFactory.SeparatedList(new[] { secondArg, firstArg }),
                 syntax.ArgumentList.CloseParenToken);
             return SyntaxFactory.InvocationExpression(syntax.Expression, newArgs)
+                .WithLeadingTrivia(syntax.GetLeadingTrivia())
+                .WithTrailingTrivia(syntax.GetTrailingTrivia());
+        }
+
+        private SyntaxNode GetExceptionMethodReplacement(InvocationExpressionSyntax syntax)
+        {
+            var firstArg = syntax.ArgumentList.Arguments[0];
+            var secondArg = syntax.ArgumentList.Arguments[1];
+            var newArgs = SyntaxFactory.ArgumentList(
+                syntax.ArgumentList.OpenParenToken,
+                SyntaxFactory.SeparatedList(new[] { secondArg, firstArg }),
+                syntax.ArgumentList.CloseParenToken);
+            var oldMemberAccess = (MemberAccessExpressionSyntax) syntax.Expression;
+            int methodIndex = Array.IndexOf(Constants.ExceptionMethodNames, oldMemberAccess.Name.Identifier.Text);
+            var newMemberAccess = SyntaxFactory.MemberAccessExpression(
+                SyntaxKind.SimpleMemberAccessExpression,
+                oldMemberAccess.Expression,
+                SyntaxFactory.IdentifierName(Constants.MethodNames[methodIndex]));
+            return SyntaxFactory.InvocationExpression(newMemberAccess, newArgs)
                 .WithLeadingTrivia(syntax.GetLeadingTrivia())
                 .WithTrailingTrivia(syntax.GetTrailingTrivia());
         }
