@@ -45,5 +45,11 @@ namespace Usemam.NLog.CodeFixes.Common
 
             return false;
         }
+
+        public static bool CheckIfMultiline(this ArgumentSyntax argument)
+        {
+            var lineSpan = argument.SyntaxTree.GetLineSpan(argument.Span);
+            return lineSpan.EndLinePosition.Line > lineSpan.StartLinePosition.Line;
+        }
     }
 }

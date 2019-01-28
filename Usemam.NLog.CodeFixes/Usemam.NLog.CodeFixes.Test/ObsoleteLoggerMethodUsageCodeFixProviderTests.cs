@@ -158,6 +158,55 @@ namespace Usemam.NLog.CodeFixes.Test
             VerifyCSharpFix(test, fixtest, allowNewCompilerDiagnostics: true);
         }
 
+        [TestMethod]
+        public void StringArgSpansMultipleLines_ExpectedArgToBeExtractedIntoVariable()
+        {
+            var test = @"
+    using System;
+
+    using NLog;
+
+    namespace ConsoleApplication1
+    {
+        class TypeName
+        {
+            private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
+
+            public static void Main(string[] args)
+            {
+                _logger.Trace(
+                    string.Format(
+                        ""Important message. Parameters: [ID1={0}]"",
+                        1234567),
+                    new Exception());
+            }
+        }
+    }";
+
+            var fixtest = @"
+    using System;
+
+    using NLog;
+
+    namespace ConsoleApplication1
+    {
+        class TypeName
+        {
+            private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
+
+            public static void Main(string[] args)
+            {
+                var traceLogMessage = string.Format(
+                    ""Important message. Parameters: [ID1={0}]"",
+                    1234567);
+                _logger.Trace(
+                    new Exception(), logTraceMessage);
+            }
+        }
+    }";
+            VerifyCSharpFix(test, fixtest, allowNewCompilerDiagnostics: true);
+        }
+
         protected override CodeFixProvider GetCSharpCodeFixProvider()
         {
             return new ObsoleteLoggerMethodUsageCodeFixProvider();

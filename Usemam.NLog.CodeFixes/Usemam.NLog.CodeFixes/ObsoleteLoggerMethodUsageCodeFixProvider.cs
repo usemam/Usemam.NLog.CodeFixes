@@ -70,35 +70,90 @@ namespace Usemam.NLog.CodeFixes
         private Task<Document> GetTransformedDocumentAsync(
             Document document, SyntaxNode root, InvocationExpressionSyntax syntax)
         {
-            var replacement = GetMethodReplacement(syntax);
-            var newRoot = root.ReplaceNode(syntax, replacement);
+            var invocation = GetMethodReplacement(syntax);
+            SyntaxNode newRoot;
+            if (TryGetStringVarDeclaration(syntax, out var stringVarDeclaration))
+            {
+                var wrapper = SyntaxFactory
+                    .Block(
+                        stringVarDeclaration,
+                        SyntaxFactory.ExpressionStatement(invocation))
+                    .WithOpenBraceToken(SyntaxFactory.MissingToken(SyntaxKind.OpenBraceToken))
+                    .WithCloseBraceToken(SyntaxFactory.MissingToken(SyntaxKind.CloseBraceToken));
+                newRoot = root.ReplaceNode(syntax.Parent, wrapper.Statements);
+            }
+            else
+            {
+                newRoot = root.ReplaceNode(syntax, invocation);
+            }
+
             return Task.FromResult(document.WithSyntaxRoot(newRoot));
         }
 
-        private static SyntaxNode GetMethodReplacement(InvocationExpressionSyntax syntax)
+        private static InvocationExpressionSyntax GetMethodReplacement(InvocationExpressionSyntax syntax)
         {
-            var firstArg = syntax.ArgumentList.Arguments[0];
-            var secondArg = syntax.ArgumentList.Arguments[1];
+            var stringArg = syntax.ArgumentList.Arguments[0];
+            var exceptionArg = syntax.ArgumentList.Arguments[1];
+
+            if (stringArg.CheckIfMultiline())
+            {
+                stringArg = SyntaxFactory.Argument(
+                    SyntaxFactory.IdentifierName(GetStringVarName(syntax)));
+            }
+
             var newArgs = SyntaxFactory.ArgumentList(
                 syntax.ArgumentList.OpenParenToken,
-                SyntaxFactory.SeparatedList(new[] { secondArg, firstArg }),
+                SyntaxFactory.SeparatedList(new[] { exceptionArg, stringArg }),
                 syntax.ArgumentList.CloseParenToken);
             var oldMemberAccess = (MemberAccessExpressionSyntax) syntax.Expression;
             int methodIndex = Array.IndexOf(Constants.ExceptionMethodNames, oldMemberAccess.Name.Identifier.Text);
+            InvocationExpressionSyntax invocation;
             if (methodIndex > -1)
             {
                 var newMemberAccess = SyntaxFactory.MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
                     oldMemberAccess.Expression,
                     SyntaxFactory.IdentifierName(Constants.MethodNames[methodIndex]));
-                return SyntaxFactory.InvocationExpression(newMemberAccess, newArgs)
-                    .WithLeadingTrivia(syntax.GetLeadingTrivia())
-                    .WithTrailingTrivia(syntax.GetTrailingTrivia());
+                invocation = SyntaxFactory.InvocationExpression(newMemberAccess, newArgs);
+            }
+            else
+            {
+                invocation = SyntaxFactory.InvocationExpression(syntax.Expression, newArgs);
             }
 
-            return SyntaxFactory.InvocationExpression(syntax.Expression, newArgs)
+            return invocation
                 .WithLeadingTrivia(syntax.GetLeadingTrivia())
                 .WithTrailingTrivia(syntax.GetTrailingTrivia());
+        }
+
+        private static bool TryGetStringVarDeclaration(InvocationExpressionSyntax syntax, out LocalDeclarationStatementSyntax declaration)
+        {
+            var stringArg = syntax.ArgumentList.Arguments[0];
+            declaration = null;
+            if (stringArg.CheckIfMultiline())
+            {
+                var declarator = SyntaxFactory
+                    .VariableDeclarator(GetStringVarName(syntax))
+                    .WithInitializer(SyntaxFactory.EqualsValueClause(stringArg.Expression));
+                declaration =
+                    SyntaxFactory
+                        .LocalDeclarationStatement(
+                            SyntaxFactory
+                                .VariableDeclaration(
+                                    SyntaxFactory.PredefinedType(SyntaxFactory.Token(SyntaxKind.StringKeyword)))
+                                .WithVariables(SyntaxFactory.SingletonSeparatedList(declarator)))
+                        .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string GetStringVarName(InvocationExpressionSyntax syntax)
+        {
+            var memberAccess = (MemberAccessExpressionSyntax)syntax.Expression;
+            string methodName = memberAccess.Name.Identifier.Text;
+            return $"{methodName.First().ToString().ToLower() + methodName.Substring(1)}LogMessage";
         }
 
         private class FixAll : FixAllInDocumentProvider
@@ -120,11 +175,13 @@ namespace Usemam.NLog.CodeFixes
                 }
 
                 var syntaxRoot = await document.GetSyntaxRootAsync().ConfigureAwait(false);
-                var nodes = diagnostics.Select(
-                    diagnostic => syntaxRoot.FindNode(diagnostic.Location.SourceSpan, getInnermostNodeForTie: true, findInsideTrivia: true));
+                var nodes = diagnostics
+                    .Select(diagnostic => syntaxRoot.FindNode(
+                        diagnostic.Location.SourceSpan, getInnermostNodeForTie: true, findInsideTrivia: true))
+                    .OfType<InvocationExpressionSyntax>();
                 return syntaxRoot.ReplaceNodes(
                     nodes,
-                    (_, newNode) => GetMethodReplacement((InvocationExpressionSyntax) newNode));
+                    (_, node) => GetMethodReplacement(node));
             }
         }
     }
