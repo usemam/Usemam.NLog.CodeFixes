@@ -200,7 +200,7 @@ namespace Usemam.NLog.CodeFixes.Test
                     ""Important message. Parameters: [ID1={0}]"",
                     1234567);
                 _logger.Trace(
-                    new Exception(), logTraceMessage);
+                    new Exception(), traceLogMessage);
             }
         }
     }";
