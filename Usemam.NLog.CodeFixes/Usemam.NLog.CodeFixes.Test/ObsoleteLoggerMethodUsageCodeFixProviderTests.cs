@@ -196,9 +196,9 @@ namespace Usemam.NLog.CodeFixes.Test
 
             public static void Main(string[] args)
             {
-                var traceLogMessage = string.Format(
-                    ""Important message. Parameters: [ID1={0}]"",
-                    1234567);
+                string traceLogMessage = string.Format(
+                        ""Important message. Parameters: [ID1={0}]"",
+                        1234567);
                 _logger.Trace(
                     new Exception(), traceLogMessage);
             }
